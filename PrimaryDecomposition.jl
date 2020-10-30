@@ -24,8 +24,8 @@ LinearMap(M::Array{T, 2}) where T <: Number = LinearMap(size(M)[1], M)
 *(x::Basic, M::LinearMap{T, N}) where {T, N} = LinearMap(M.length, x * M.matrepr)
 +(x::Basic, A::Array{T, 2}) where T = x * Array(size(A)[1] |> I) + A
 -(x::Basic, A::Array{T, 2}) where T = x * Array(size(A)[1] |> I) - A
-+(x::Int, A::Array{U, 2}) where U = x * Array(size(A)[1] |> I) + A
--(x::Int, A::Array{U, 2}) where U = x * Array(size(A)[1] |> I) - A
++(x::T, A::Array{U, 2}) where T <: Number where U = x * Array(size(A)[1] |> I) + A
+-(x::T, A::Array{U, 2}) where T <: Number where U = x * Array(size(A)[1] |> I) - A
 
 function charpoly(M::LinearMap, var::Basic, simpr::Bool = true)::Basic
     eq = det(var * I(M.length) - M.matrepr)
@@ -38,20 +38,16 @@ function terms(expr::Basic)::Array{SubString{String}, 1} # Maybe not so useful
 end
 
 function distcomplex(z1::Vector{Basic}, z2::Vector{Basic})::Real    
-    sum(map(abs, z1 - z2))
+    map(abs, z1 - z2) |> sum
 end
 
 # Using Durand-Kerner method to find all complex roots
-function durandkerner(M::LinearMap, var::Basic, maxiterations::Int = 15, 
+function durandkerner(M::LinearMap, var::Basic, maxiterations::Int = 25, 
             initvals::Complex = sqrt(2)im)::Vector{Basic}
 
-    # Initiate the values
     d, iter, expr = M.length, maxiterations, charpoly(M, var)
-    println(d)
     sol = map(x -> convert(Basic, x), Array(hcat([[0, initvals^i] for i = 1:d]...)'))
-
-    # Begin the main loop
-    while distcomplex(sol[:, end], sol[:, end - 1]) > 10e-6 && iter > 0
+    while distcomplex(sol[:, end], sol[:, end - 1]) > 10e-12 && iter > 0
         newer = Vector{Basic}()
         for i = 1:d
             last = sol[:, end]
@@ -65,7 +61,7 @@ function durandkerner(M::LinearMap, var::Basic, maxiterations::Int = 15,
 end
 
 function rroot(r::Basic)::Union{Basic, Nothing}
-    abs(imag(r)) < 10e-6 ? real(r) : nothing
+    abs(imag(r)) < 10e-3 ? real(r) : nothing
 end
 
 function rroots(r::Vector{Basic})::Vector{Basic}
@@ -73,30 +69,19 @@ function rroots(r::Vector{Basic})::Vector{Basic}
 end
 
 function getint(r::Vector{Basic})::Vector{Basic}
-    map(x -> abs(x - round(x)) < 10e-2 ? round(x) : x, r)
+    map(x -> abs(x - round(x)) < 10e-3 ? round(x) : x, r)
 end
 
-function getlambda(var::Basic, expr::Basic)
-    string("$var", "->", "$expr") |> Meta.parse |> eval
-end
-
-function findminipolyaux(M::LinearMap, roots::Vector{Basic}, var::Basic)
+function findminipoly(M::LinearMap, roots::Vector{Basic}, var::Basic)
     maxdegree = M.length
     numroots = length(roots)
-    candidates = Vector()
-    for α ∈ Iterators.product([1:maxdegree for _ = 1:numroots]...)
-        expr = [(var - roots[i])^(α[i]) for i = 1:numroots] |> prod |> expand
-        push!(candidates, [α, getlambda(var, expr)])
+    for α ∈ Iterators.product([0:1 for _ = 1:numroots]...)
+        if α ≠ Tuple(0 for _ = 1:numroots)
+            expr = [(var - roots[i])^(α[i]) for i = 1:numroots] |> prod |> expand
+            if all(x -> abs(x) < 10e-3, M.matrepr |> lambdify(expr)) return (α, expr) end
+        end
     end
-    return candidates
 end
-
-# function findminipoly(M::LinearMap, aux::Vector)
-#     annihilators = Vector{Tuple{Int, Int}}()
-#     for candidate ∈ aux
-#         println(candidate[2](1))
-#     end
-# end
 
 function main()
     @vars x
@@ -107,11 +92,11 @@ function main()
          [0 0 1 -1]]
     # Example matrix from lecture notes
     M2 = [[2 0 0]; [-1 -3 -1]; [-1 4 1]]
-    M3 = [[0 -1 0]; [1 0 0]; [0 0 3]]
     
-    Mw = LinearMap(M3)
+    Mw = LinearMap(M2)
     v = durandkerner(Mw, x) |> rroots |> getint
-    # vnew = findminipolyaux(Mw, v, x)
+    vnew = findminipoly(Mw, v, x)
+    println(v, vnew)
     # p = findminipoly(Mw, vnew)
 end
 
