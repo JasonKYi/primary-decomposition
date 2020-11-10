@@ -61,7 +61,7 @@ function durandkerner(M::LinearMap, var::Basic, maxiterations::Int = 25,
 end
 
 function rroot(r::Basic)::Union{Basic, Nothing}
-    abs(imag(r)) < 10e-3 ? real(r) : nothing
+    abs(imag(r)) < 10e-3 && real(r)
 end
 
 function rroots(r::Vector{Basic})::Vector{Basic}
@@ -78,26 +78,53 @@ function findminipoly(M::LinearMap, roots::Vector{Basic}, var::Basic)
     for α ∈ Iterators.product([0:1 for _ = 1:numroots]...)
         if α ≠ Tuple(0 for _ = 1:numroots)
             expr = [(var - roots[i])^(α[i]) for i = 1:numroots] |> prod |> expand
-            if all(x -> abs(x) < 10e-3, M.matrepr |> lambdify(expr)) return (α, expr) end
+            all(x -> abs(x) < 10e-3, M.matrepr |> lambdify(expr)) && return (α, expr)
         end
     end
 end
 
+tobool(val::Int) = val == 1 ? true : false
+function filterby(from::T, ft) where T <: AbstractArray{U} where U
+    filtered = Vector{U}()
+    for index in 1:length(ft)
+        ft[index] && push!(filtered, from[index])
+    end
+    filtered
+end
+
+# function splitsame(from::T, rec::T = T[]) where T <: AbstractArray{U} where U
+#     if isempty(from)
+#         rec
+#     else
+#         copyfrom, copyrec = copy(from), copy(rec)
+#         newlast= last(copyrec)
+#         elem = pop!(copyfrom)
+#         if last(last(copyrec)) == elem
+#             push!(newlast, elem) 
+#             copyrec[length(copyrec)] = newlast
+#         else
+#             push!(copyrec, [elem])
+#         end 
+#         splitsame(copyfrom, copyrec)
+#     end
+# end
+
 function main()
     @vars x
     # Companion matrix of x^4 + x^3 + 2x^2 + 1 which has no real roots
-    M = [[0 0 0 -1]; 
-         [1 0 0  0]; 
-         [0 1 0 -2];
-         [0 0 1 -1]]
+    M = [[2 0 0 0]; 
+         [6 3 1 0]; 
+         [1 0 2 0];
+         [2 1 0 3]]
     # Example matrix from lecture notes
-    M2 = [[2 0 0]; [-1 -3 -1]; [-1 4 1]]
+    # M = [[8 6 -4]; [0 2 0]; [9 9 -4]]
     
-    Mw = LinearMap(M2)
+    Mw = LinearMap(M)
+    char = charpoly(Mw, x)
     v = durandkerner(Mw, x) |> rroots |> getint
-    vnew = findminipoly(Mw, v, x)
-    println(v, vnew)
-    # p = findminipoly(Mw, vnew)
+    mini = findminipoly(Mw, v, x)
+    println("Roots : $v\nCharacteristic polynomial : $char\nMinimal polynomial : $mini")
+    # filterby(v, map(tobool, vnew[1]))
 end
 
 main()
